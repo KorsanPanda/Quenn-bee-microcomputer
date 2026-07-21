@@ -1,122 +1,123 @@
-# 🐝 Queen Bee Microcomputer
+# 🐝 Queen Bee Microcomputer (Custom VHDL CPU Architecture)
 
 ![Language](https://img.shields.io/badge/Language-VHDL-blue.svg)
-![Tool](https://img.shields.io/badge/Tool-Xilinx_ISE_14.7-red.svg)
-![Architecture](https://img.shields.io/badge/Architecture-RTL_Custom_CPU-green.svg)
+![Tool](https://img.shields.io/badge/Tool-Xilinx_ISE-red.svg)
+![Architecture](https://img.shields.io/badge/Architecture-RTL_Custom_Processor-green.svg)
 ![Target](https://img.shields.io/badge/Target-FPGA-orange.svg)
 
-**Queen Bee** is a 16-bit custom microcomputer architecture designed from scratch in VHDL using the Xilinx ISE environment. Developed in hardware using Register-Transfer Level (RTL) principles, this microprocessor is engineered to run a hardware-based **Number Guessing Game** and microcomputer instruction sets directly, without relying on an external CPU.
+**Queen Bee** is a custom hardware-level microprocessor architecture implemented in **VHDL**. Designed directly at the Register-Transfer Level (RTL), this system features a custom control unit, dedicated register array, multiplexed common data bus, and hardware execution logic for running a **Number Guessing Game** loaded via memory configuration files (`MEMORY.mem`).
 
 ---
 
-## 📌 Project Overview
+## 📌 System Architecture & Features
 
-This project was developed to materialize computer architecture principles and digital design processes. The system features its own data bus (BUS), register group (Registers), memory unit (RAM/ROM), and control unit.
+The processor executes instructions via a sequence-based ring counter (`SAYAC.vhd`, timing states $t_0$ through $t_5$) and a central control unit (`kontrolUnitesi.vhd`).
 
-### Key Features
-* **16-bit Instruction & Bus Architecture:** 16-bit wide common data bus (BUS) and instruction structure.
-* **Custom Registers:** Hardware registers including `AC` (Accumulator), `PC` (Program Counter), `IR` (Instruction Register), `AR` (Address Register), `TR` (Temporary Register), `INPR` (Input Register), and `OUTR` (Output Register).
-* **Arithmetic Logic Unit (ALU):** Handles addition, subtraction, logical operations, and number comparisons.
-* **On-Chip Game Logic:** Hardware-level number guessing game logic that compares user input against a target number.
-* **FPGA Display & I/O Integration:** 7-Segment Display driver (`segment.vhd`), switch inputs, and LED signaling via UCF pin assignments.
+### Key Components & Bit Widths
+* **Top-Level Unit (`MAIN.vhd`):** Connects all registers, ALU, RAM, sequence counter, and bus routing logic.
+* **16-bit Common Data Bus (`veriyollu.vhd` & `MUX.vhd`):** Multiplexer-based internal bus interconnecting registers and memory.
+* **Register Set:**
+  * **`IR.vhd` (Instruction Register):** 16-bit register storing opcode ($Bit[13..11]$), addressing mode ($Bit[15..14]$), and target address ($Bit[10..0]$).
+  * **`AC.vhd` (Accumulator):** 4-bit register for intermediate arithmetic/logic results.
+  * **`AR.vhd` (Address Register):** 11-bit memory addressing register.
+  * **`PC.vhd` (Program Counter):** 11-bit sequential program execution counter.
+  * **`TR.vhd` (Temporary Register):** 4-bit temporary operand storage.
+  * **`INPR.vhd` & `OUTR.vhd`:** Input/Output registers for switch inputs and LED/Display outputs.
+* **Arithmetic Logic Unit (`ALU.vhd`):** Performs addition, bitwise AND/OR/NOT, and hardware-level comparison operations between `AC`, `TR`, and `INPR`.
+* **Memory Unit (`ram.vhd` & `MEMORY.mem`):** Internal RAM initialized with binary instructions and game constants.
+* **FPGA Constraints (`pinsegment.ucf` & `led.ucf`):** Physical pin bindings for 7-Segment displays and I/O switches.
 
 ---
 
-## 🏗️ Hardware Architecture & Components
-
-The processor architecture consists of modular VHDL components:
+## 🏗️ Hardware Block Diagram
 
 ```text
-                  +--------------------------+
-                  |  Control Unit / Decoder  |
-                  +------------+-------------+
-                               |
-                               v
-+---------+      +---------------------------+      +---------+
-|  INPR   | ---> |  Common Bus (BUS.vhd)     | ---> |  OUTR   |
-| (Inputs)|      +-------------+-------------+      | (LEDs/  |
-+---------+                    |                    | Segment)|
-                               v                    +---------+
-                 +---------------------------+
-                 | ALU / AC / PC / AR / TR   |
-                 +---------------------------+
-                 | RAM / Memory (Memory.vhd) |
-                 +---------------------------+
+                  +--------------------------------+
+                  |    Sequence Counter (SAYAC)    |
+                  |     (Timing Signals t0-t5)     |
+                  +---------------+----------------+
+                                  |
+                                  v
++---------------+  +-------------------------------+  +---------------+
+| Input Switches|  |    Control Unit & Decoder     |  | 7-Segment /   |
+|  (INPR.vhd)   |->|      (kontrolUnitesi.vhd)     |->| LEDs (OUTR /  |
++---------------+  +---------------+---------------+  | segment.vhd)  |
+                                   |                  +---------------+
+                                   v
++---------------------------------------------------------------------+
+|                  16-bit Common Data Bus (veriyollu.vhd)             |
++-------+---------------+---------------+---------------+-------------+
+        |               |               |               |
+        v               v               v               v
+  +-----------+   +-----------+   +-----------+   +-----------+
+  |  PC / AR  |   |    IR     |   |  ALU / AC |   | RAM Block |
+  | (11-bit)  |   | (16-bit)  |   |  (4-bit)  |   | (ram.vhd) |
+  +-----------+   +-----------+   +-----------+   +-----------+
 ```
-
-### Core VHDL Modules
-* **`MAIN.vhd`:** Top-Level entity that integrates all sub-modules (ALU, Registers, Memory, Data Bus).
-* **`ALU.vhd`:** Unit responsible for performing arithmetic and logic operations.
-* **`BUS.vhd` / `veriyollu.vhd`:** Common data bus managing data flow between registers and memory.
-* **`kontrolUnitesi.vhd`:** Controller that decodes instructions and generates timing/interrupt signals.
-* **`Memory.vhd` / `ram.vhd`:** Memory structure holding game instructions and data (initialized via `MEMORY.mem`).
-* **`segment.vhd` & `LED_switch.vhd`:** I/O modules driving the 7-segment displays and status LEDs on the FPGA.
 
 ---
 
-## 💻 Instructions & Memory (`MEMORY.mem`)
+## 💻 Memory & Instruction Format (`MEMORY.mem`)
 
-The system executes binary instructions loaded from the `MEMORY.mem` file at startup. For example:
-* `0111000000001110` : Instruction and data addressing structures.
-* The value read from the input register (`INPR`) is compared against the target number through the ALU, and the result is transferred to the displays via `OUTR`.
+Instructions are encoded in 16-bit binary formats:
+* **Bits [15..14]:** Addressing Mode (`00`: Direct, `01`: Indirect, `10`: Immediate, `11`: Register Command).
+* **Bits [13..11]:** Opcode (e.g., `000`: AND, `001`: OR, `101`: ADD, `110`: LDA, `111`: Register Operation).
+* **Bits [10..0]:** Memory Address or Register Command Flags (`reg_cmd`).
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-* **Xilinx ISE Design Suite 14.7** (or Xilinx Vivado)
-* **ISim** (Xilinx Simulator)
-* A compatible FPGA Development Board (Spartan / Artix series)
+* **Xilinx ISE Design Suite** (or Vivado with VHDL-93/2002 support)
+* ISim / ModelSim Simulator
+* Target FPGA board (e.g., Spartan-6 or Artix-7)
 
-### Simulation & Synthesis Steps
+### Synthesis & Simulation Steps
 
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/USERNAME/Quenn-bee-microcomputer.git](https://github.com/USERNAME/Quenn-bee-microcomputer.git)
-   cd Quenn-bee-microcomputer
+   git clone [https://github.com/KorsanPanda/quenn-bee-microcomputer.git](https://github.com/KorsanPanda/quenn-bee-microcomputer.git)
+   cd quenn-bee-microcomputer
    ```
 
 2. **Open Project in Xilinx ISE:**
-   * Launch Xilinx ISE Project Navigator.
-   * Open `KraliceAri.xise` project file.
+   * Create a new project pointing to the repository root directory.
+   * Add all `.vhd` source files and select `MAIN.vhd` as the Top-Level Entity.
+   * Add physical constraint files (`pinsegment.ucf` and `led.ucf`).
 
-3. **Run Behavioral Simulation:**
-   * Set the view to **Simulation**.
-   * Select `MAIN.vhd` or testbench.
-   * Double-click **Simulate Behavioral Model** under ISim Simulator.
+3. **Run Simulation:**
+   * Set view to **Simulation**.
+   * Run behavioral simulation on `MAIN.vhd` or individual testbenches.
 
-4. **FPGA Synthesis & Implementation:**
-   * Ensure `led.ucf` and `pinsegment.ucf` constraint files are included.
-   * Run **Synthesize - XST** and **Implement Design**.
-   * Generate Programming File (`.bit`) and download to the target FPGA board.
+4. **Generate Bitstream:**
+   * Run **Synthesize - XST** followed by **Implement Design**.
+   * Generate Bitstream (`.bit`) and flash to your FPGA hardware.
 
 ---
 
 ## 📁 Directory Structure
 
 ```text
-KraliceAri/
-├── include / src VHDL Modules/
-│   ├── MAIN.vhd             # Top-Level entity connecting all sub-modules
-│   ├── ALU.vhd              # Arithmetic Logic Unit
-│   ├── BUS.vhd              # Common Data Bus routing
-│   ├── kontrolUnitesi.vhd   # Control Unit & FSM logic
-│   ├── Memory.vhd           # Internal RAM / ROM memory
-│   ├── AC.vhd               # Accumulator Register
-│   ├── PC.vhd               # Program Counter Register
-│   ├── IR.vhd               # Instruction Register
-│   ├── AR.vhd               # Address Register
-│   ├── TR.vhd               # Temporary Register
-│   ├── INPR.vhd             # Input Register
-│   ├── OUTR.vhd             # Output Register
-│   ├── segment.vhd          # 7-Segment display controller
-│   └── LED_switch.vhd       # Switch input & LED drivers
-├── Constraints/
-│   ├── led.ucf              # UCF Pin assignments for LEDs
-│   └── pinsegment.ucf       # UCF Pin assignments for 7-Segment Display
-├── Data/
-│   └── MEMORY.mem           # Binary instruction/memory initialization file
-├── KraliceAri.xise          # Xilinx ISE Project File
-└── README.md
+korsanpanda-quenn-bee-microcomputer/
+├── MAIN.vhd             # Top-Level entity connecting all CPU modules
+├── veriyollu.vhd        # 16-bit multiplexed common bus implementation
+├── ALU.vhd              # Arithmetic Logic Unit
+├── IR.vhd               # 16-bit Instruction Register and instruction decoder
+├── AC.vhd               # 4-bit Accumulator Register
+├── AR.vhd               # 11-bit Address Register
+├── PC.vhd               # 11-bit Program Counter Register
+├── TR.vhd               # 4-bit Temporary Register
+├── INPR.vhd             # 4-bit Input Register
+├── OUTR.vhd              # Output Register driving external display logic
+├── ram.vhd              # RAM block module
+├── SAYAC.vhd            # Ring counter generating t0-t5 timing signals
+├── MUX.vhd              # Bus multiplexer primitive
+├── segment.vhd          # 7-Segment display driver
+├── LED_switch.vhd       # Board switch/LED interface
+├── kontrolUnitesi.vhd   # CPU Control Unit
+├── pinsegment.ucf       # UCF pin locations for 7-Segment display
+├── led.ucf              # UCF pin locations for board LEDs/switches
+├── MEMORY.mem           # Binary instruction memory initialization file
+└── README.md            # System documentation
 ```
